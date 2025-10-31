@@ -10,6 +10,7 @@
 
 **Network**: Sepolia Testnet (Chain ID: 11155111)
 **Contract**: [0x90DD935d005781Fd7B20DE72dD04b9c1EB54E117]
+- **Sepolia Contract**: [0x90DD935d005781Fd7B20DE72dD04b9c1EB54E117](https://sepolia.etherscan.io/address/0x90DD935d005781Fd7B20DE72dD04b9c1EB54E117)
 
 ## 🌐 Live Demo
 
@@ -785,8 +786,8 @@ This project is open source and free to use for academic, educational, and comme
 
 ## 🔗 Links
 
-- **GitHub Repository**: [academic-review-blockchain](https://github.com/)
-- **Sepolia Contract**: [0x90DD935d005781Fd7B20DE72dD04b9c1EB54E117](https://sepolia.etherscan.io/address/0x90DD935d005781Fd7B20DE72dD04b9c1EB54E117)
+ 
+
 - **Sepolia Faucet**: [sepoliafaucet.com](https://sepoliafaucet.com/)
 - **Hardhat Framework**: [hardhat.org](https://hardhat.org/)
 - **OpenZeppelin**: [openzeppelin.com](https://openzeppelin.com/)
