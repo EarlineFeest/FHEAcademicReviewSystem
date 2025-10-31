@@ -1,0 +1,273 @@
+name: Security Audit
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  schedule:
+    # Run security audit every Monday at 00:00 UTC
+    - cron: "0 0 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: |
+          echo "Running npm audit..."
+          npm audit --audit-level=moderate --json > npm-audit.json || true
+          npm audit --audit-level=moderate || true
+
+      - name: Check for vulnerabilities
+        run: |
+          echo "Analyzing vulnerabilities..."
+          if [ -f npm-audit.json ]; then
+            vulnerabilities=$(cat npm-audit.json | grep -o '"vulnerabilities":{[^}]*}' || echo "")
+            echo "Vulnerabilities found: $vulnerabilities"
+          fi
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-report
+          path: npm-audit.json
+          retention-days: 30
+
+  solidity-security:
+    name: Solidity Security Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile contracts
+        run: npm run compile
+
+      - name: Run Solhint security checks
+        run: |
+          echo "Running Solhint security analysis..."
+          npm run lint:sol > solhint-report.txt 2>&1 || true
+          cat solhint-report.txt
+
+      - name: Check for common vulnerabilities
+        run: |
+          echo "Checking for common Solidity vulnerabilities..."
+
+          # Check for tx.origin usage
+          if grep -r "tx.origin" contracts/ --include="*.sol"; then
+            echo "⚠️  Warning: tx.origin usage detected (potential phishing vulnerability)"
+          fi
+
+          # Check for delegatecall
+          if grep -r "delegatecall" contracts/ --include="*.sol"; then
+            echo "⚠️  Warning: delegatecall detected (requires careful review)"
+          fi
+
+          # Check for selfdestruct
+          if grep -r "selfdestruct\|suicide" contracts/ --include="*.sol"; then
+            echo "⚠️  Warning: selfdestruct detected (requires careful review)"
+          fi
+
+          # Check for block.timestamp
+          if grep -r "block.timestamp\|now" contracts/ --include="*.sol"; then
+            echo "ℹ️  Info: Timestamp usage detected (verify time-dependent logic)"
+          fi
+
+          # Check for unchecked arithmetic (< 0.8.0 style)
+          if grep -r "unchecked" contracts/ --include="*.sol"; then
+            echo "ℹ️  Info: Unchecked arithmetic blocks found"
+          fi
+
+      - name: Check for reentrancy patterns
+        run: |
+          echo "Checking for potential reentrancy issues..."
+
+          # Check for external calls followed by state changes
+          echo "Analyzing call patterns..."
+
+          # Check for missing checks-effects-interactions pattern
+          if grep -rn "\.call{" contracts/ --include="*.sol"; then
+            echo "⚠️  Warning: Low-level call detected - verify CEI pattern"
+          fi
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v4
+        with:
+          name: solidity-security-report
+          path: solhint-report.txt
+          retention-days: 30
+
+  contract-size-check:
+    name: Contract Size Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile contracts
+        run: npm run compile
+
+      - name: Check contract sizes
+        run: |
+          echo "==================================="
+          echo "Contract Size Analysis"
+          echo "==================================="
+
+          MAX_SIZE=24576  # 24KB limit
+          EXIT_CODE=0
+
+          for file in artifacts/contracts/**/*.json; do
+            if [[ -f "$file" ]] && [[ ! "$file" =~ \.dbg\.json$ ]]; then
+              # Extract contract name
+              CONTRACT=$(basename "$file" .json)
+
+              # Get bytecode size
+              BYTECODE=$(jq -r '.deployedBytecode' "$file" 2>/dev/null)
+              if [ "$BYTECODE" != "null" ] && [ "$BYTECODE" != "0x" ]; then
+                SIZE=$((${#BYTECODE} / 2 - 1))
+                PERCENT=$((SIZE * 100 / MAX_SIZE))
+
+                echo "----------------------------------------"
+                echo "Contract: $CONTRACT"
+                echo "Size: $SIZE bytes ($PERCENT% of limit)"
+
+                if [ $SIZE -gt $MAX_SIZE ]; then
+                  echo "❌ EXCEEDS 24KB LIMIT!"
+                  EXIT_CODE=1
+                elif [ $SIZE -gt 22000 ]; then
+                  echo "⚠️  WARNING: Approaching limit"
+                else
+                  echo "✅ Within limits"
+                fi
+              fi
+            fi
+          done
+
+          echo "==================================="
+          exit $EXIT_CODE
+
+  dependency-review:
+    name: Dependency Security Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+          allow-licenses: MIT, Apache-2.0, BSD-3-Clause, ISC
+          deny-licenses: GPL-3.0, AGPL-3.0
+
+  gas-optimization-check:
+    name: Gas Optimization Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run gas reporter
+        run: |
+          echo "Running gas optimization analysis..."
+          REPORT_GAS=true npm test > gas-report.txt 2>&1 || true
+          cat gas-report.txt
+
+      - name: Upload gas report
+        uses: actions/upload-artifact@v4
+        with:
+          name: gas-optimization-report
+          path: gas-report.txt
+          retention-days: 30
+
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs:
+      [
+        security-audit,
+        solidity-security,
+        contract-size-check,
+        gas-optimization-check,
+      ]
+    if: always()
+
+    steps:
+      - name: Generate security summary
+        run: |
+          echo "==================================="
+          echo "Security Audit Summary"
+          echo "==================================="
+          echo "✅ NPM Audit: ${{ needs.security-audit.result }}"
+          echo "✅ Solidity Security: ${{ needs.solidity-security.result }}"
+          echo "✅ Contract Size: ${{ needs.contract-size-check.result }}"
+          echo "✅ Gas Optimization: ${{ needs.gas-optimization-check.result }}"
+          echo "==================================="
+
+      - name: Fail on security issues
+        if: |
+          needs.security-audit.result == 'failure' ||
+          needs.solidity-security.result == 'failure' ||
+          needs.contract-size-check.result == 'failure'
+        run: |
+          echo "❌ Security checks failed!"
+          exit 1
