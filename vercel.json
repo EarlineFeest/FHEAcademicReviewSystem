@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "buildCommand": "cd AcademicReviewSystem && npm install && npm run build",
+  "buildCommand": "cd AcademicReviewSystem && npm ci && npm run build",
   "outputDirectory": "AcademicReviewSystem/build",
-  "installCommand": "cd AcademicReviewSystem && npm install",
+  "installCommand": "cd AcademicReviewSystem && npm ci",
   "rewrites": [
     {
       "source": "/(.*)",
