@@ -1,4 +1,6 @@
 {
+  "buildCommand": "cd AcademicReviewSystem && npm run build",
+  "outputDirectory": "AcademicReviewSystem/build",
   "rewrites": [
     {
       "source": "/(.*)",
