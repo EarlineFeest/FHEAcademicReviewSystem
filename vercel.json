@@ -1,6 +1,6 @@
 {
   "buildCommand": "echo 'Using pre-built files'",
-  "outputDirectory": "AcademicReviewSystem/build",
+  "outputDirectory": "build",
   "installCommand": "echo 'No install needed'",
   "rewrites": [
     {
